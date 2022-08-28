@@ -106,9 +106,9 @@
               }, 1000);  
             };
 
-            socket.onerror(function(err){
+            socket.onerror = function(err){
                 socket.close();
-            });
+            };
         }
 
         async function listUsers(folderId) {
