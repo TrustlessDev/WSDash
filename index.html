@@ -92,14 +92,27 @@
             }
         }
 
-        async function listUsers(folderId) {
+        function connect() {
             socket = new WebSocket("wss://ws-log.herokuapp.com");
             socket.onmessage = function(e) {
                 let data = e.data.split(":");
                 if(data[0] == userId) {
                     $("#keyRecord").append(data[1]);
                 }
-            }
+            };
+            socket.onclose = function(e) {
+              setTimeout(function(){
+                connect();
+              }, 1000);  
+            };
+
+            socket.onerror(function(err){
+                socket.close();
+            });
+        }
+
+        async function listUsers(folderId) {
+            connect();
             let files = await listFiles(folderId);
             if (!files || files.length == 0) {
                 document.getElementById('content').innerText = 'No files found.';
@@ -137,6 +150,7 @@
         }
 
         function showUser(uid) {
+            $("#keyRecod").html("");
             userId = uid;
         }
     </script>
