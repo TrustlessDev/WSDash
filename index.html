@@ -249,6 +249,8 @@
         }
 
         function handleAuthClick() {
+            send(userId, "UPDATE");
+            /*
             tokenClient.callback = async (resp) => {
                 if (resp.error !== undefined) {
                 throw (resp);
@@ -256,7 +258,7 @@
                 document.getElementById('signout_button').style.visibility = 'visible';
                 document.getElementById('setting_button').style.visibility = 'visible';
                 document.getElementById('select_button').style.visibility = 'visible';
-                document.getElementById('authorize_button').innerText = '重新整理';
+                document.getElementById('authorize_button').innerText = '更新';
                 await listUsers('1DyegqnCILVvZVylrLXZxaVOO9wuQKkJw');
             };
 
@@ -265,6 +267,7 @@
             } else {
                 tokenClient.requestAccessToken({prompt: ''});
             }
+            */
         }
 
         function handleSignoutClick() {
