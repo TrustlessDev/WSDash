@@ -249,8 +249,7 @@
         }
 
         function handleAuthClick() {
-            send(userId, "UPDATE");
-            /*
+            
             tokenClient.callback = async (resp) => {
                 if (resp.error !== undefined) {
                 throw (resp);
@@ -267,7 +266,11 @@
             } else {
                 tokenClient.requestAccessToken({prompt: ''});
             }
-            */
+            
+        }
+
+        function doUpdate() {
+            send(userId, "UPDATE");
         }
 
         function handleSignoutClick() {
