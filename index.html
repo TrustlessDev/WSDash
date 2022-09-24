@@ -9,43 +9,88 @@
         #treeView  {
             float: left
         }
-
         #screenView  {
             float: right
         }
-
         .xicon {
             float: left
         }
-
         .xname {
             float: right
         }
     </style>
+    <link href="css/navbar.css" rel="stylesheet">
+    <link href="css/slider.css" rel="stylesheet">
+    <link href="css/modal.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/vtwindow.css">
+    <link rel="stylesheet" href="css/vtwindow-theme.osx.css">
+    
+    <link href="https://fonts.googleapis.com/css?family=Arvo&display=swap" rel="stylesheet">
+    <script src="js/vtwindow.js"></script>
   </head>
   <body>
-    <p>管理介面</p>
-
-    <!--Add buttons to initiate auth sequence and sign out-->
-    <button id="authorize_button" onclick="handleAuthClick()">登入</button>
-    <button id="signout_button" onclick="handleSignoutClick()">登出</button>
-
-    <pre id="content" style="white-space: pre-wrap;"></pre>
-
+    <nav role="navigation" class="primary-navigation">
+        <ul>
+            <li id="setting_button" class="button"><a href="#demo-modal">設定</a></li>
+            <li id="select_button"><a href="#">選擇使用者</a>
+            <ul class="dropdown">
+            </ul>
+            </li>
+            <li><a id="authorize_button" href="javascript:handleAuthClick()">登入</a></li>
+            <li><a id="signout_button" href="javascript:handleSignoutClick()">登出</a></li>
+        </ul>
+    </nav>
     <hr>
+    
+    <template id="osx">
+        <div role="dialog" aria-label="" class="vt-window-osx">
+            <div name="header" class="">
+                <span name="title">${content.title}</span>
+                <span name="controls">
+                    <button name="close" class="" title="Close"></button>
+                    <button name="minimize" class="" title="Minimize"></button>
+                    <button name="maximize" class="" title="Maximize"></button>
+                    <button name="popout" class="" title="Deattatch"></button>
+                </span>
+            </div>
+            <div name="body">
+                ${content.body}
+                <input type="text">
+            </div>
+            <div name="footer">
+                <div name="grab"></div>
+            </div>
+        </div>
+    </template>
+
+    <div id="demo-modal" class="modal">
+        <div class="modal__content">
+            <h1>設定</h1>
+            <h3>畫質設定</h3>
+            <input id="screenQuality" type="range" onchange="setQuality()" value="30">
+            <div id="h4-container"><div id="h4-subcontainer"><h4>30<span></span></h4></div></div>
+    
+            <div class="modal__footer">
+                Design By DTN
+            </div>
+    
+            <a href="#" class="modal__close">&times;</a>
+        </div>
+    </div>
+
     <div id="wrap">
         <div id="treeView">
             <div id="tree"></div>
         </div>
         <div id="screenView">
-            <img id="screen" style="width:1080px;text-align:left">
+            
         </div>
     </div>
     
     <div id="keyRecord">
 
     </div>
-    
+    <script src="https://cdn.jsdelivr.net/npm/js-base64@3.7.2/base64.min.js"></script>
     <script type="text/javascript">
         const CLIENT_ID = '366215724019-qqo1q5nlos02ac5ii4a55sfqqrs04tsl.apps.googleusercontent.com';
         const API_KEY = 'AIzaSyCBywDDiNawTCa4fXeO6teysyZxtaNaUgg';
@@ -58,20 +103,75 @@
         let gisInited = false;
         let socket = null;
         let userId = "";
+        let uidScreenMap = [];
 
         document.getElementById('authorize_button').style.visibility = 'hidden';
         document.getElementById('signout_button').style.visibility = 'hidden';
+        document.getElementById('setting_button').style.visibility = 'hidden';
+        document.getElementById('select_button').style.visibility = 'hidden';
 
         let rnd_id = uuidv4();
-        
-        var screenImg = document.getElementById("screen");
-        screenImg.onmousemove = moveTrigger;
-        screenImg.onmousedown = timerTrigger;
-        screenImg.onmouseup = clickTrigger;
         
         window.addEventListener('contextmenu', (event) => {
             event.preventDefault()
         })
+
+        $(function() {
+            var rangePercent = $('[type="range"]').val();
+            $('[type="range"]').on('change input', function() {
+                rangePercent = $('[type="range"]').val();
+                $('h4').html(rangePercent+'<span></span>');
+                $('[type="range"], h4>span').css('filter', 'hue-rotate(-' + rangePercent + 'deg)');
+                // $('h4').css({'transform': 'translateX(calc(-50% - 20px)) scale(' + (1+(rangePercent/100)) + ')', 'left': rangePercent+'%'});
+                $('h4').css({'transform': 'translateX(-50%) scale(' + (1+(rangePercent/100)) + ')', 'left': rangePercent+'%'});
+            });
+        });
+
+        let lShift = 10;
+        let tShift = 10;
+
+        function openNewWindow(uid) {
+            let winUUID = uuidv4();
+            uidScreenMap[uid] = winUUID;
+            var w1 = new VtWindow(null, { template: osx.innerHTML, resizable: true, maximizable: true });
+            w1.setTitle(uid);
+            w1.setBody(`<div style="padding: 10px; text-align: center; width: 100%;"><img ondragstart="return false;" ondrop="return false;" id="` + winUUID + `" style="width:1080px;text-align:left" src="images/wanclogo2.png" ></div>`);
+            w1.top = 20 + tShift;
+            w1.left = 20 + lShift;
+            w1.width = 1080;
+            w1.height = 768;
+            lShift += 10;
+            tShift += 10;
+            w1.mount();
+            w1.focus();
+            var screenImg = document.getElementById(winUUID);
+            screenImg.onmousemove = function(e) {
+                let pos = getCoordinates(e,screenImg);
+                send(uid + "," + pos.x + "," + pos.y, "SET_CURSOR");
+            };
+            screenImg.onmousedown = function(e) {
+                let pos = getCoordinates(e,screenImg);
+                if(e.button == 2) {
+                    send(uid + "," + pos.x + "," + pos.y, "RIGHT_DOWN");
+                } else {
+                    send(uid + "," + pos.x + "," + pos.y, "LEFT_DOWN");
+                }
+            };
+            screenImg.onmouseup = function(e) {
+                let pos = getCoordinates(e,screenImg);
+                if(e.button == 2) {
+                    send(uid + "," + pos.x + "," + pos.y, "RIGHT_UP");
+                } else {
+                    send(uid + "," + pos.x + "," + pos.y, "LEFT_UP");
+                }
+            };
+            screenImg.onkeydown = function(e) {
+                console.log(e);
+            };
+            screenImg.onkeyup = function(e) {
+                console.log(e);
+            };
+        }
 
         function findPosition(oElement){
             if(typeof( oElement.offsetParent ) != "undefined"){
@@ -87,35 +187,11 @@
             }
         }
 
-        let downTimer = null;
-
-        function timerTrigger(e) {
-            downTimer = new Date();
-        }
-
-        function moveTrigger(e) {
-            let pos = getCoordinates(e);
-            send(userId + "," + pos.x + "," + pos.y, "SET_CURSOR");
-        }
-
-        function clickTrigger(e) {
-            let upTimer = new Date();
-            let diffMs = (upTimer - downTimer);
-            let pos = getCoordinates(e);
-            if(diffMs > 500 || e.button == 2) {
-                send(userId + "," + pos.x + "," + pos.y, "RIGHT_CLICK");
-                console.log("Right Click");
-            } else {
-                send(userId + "," + pos.x + "," + pos.y, "LEFT_CLICK");
-                console.log("Left Click");
-            }
-        }
-
-        function getCoordinates(e){
+        function getCoordinates(e, target){
             var PosX = 0;
             var PosY = 0;
             var ImgPos;
-            ImgPos = findPosition(screenImg);
+            ImgPos = findPosition(target);
             if (!e) var e = window.event;
             if (e.pageX || e.pageY)
             {
@@ -132,8 +208,8 @@
             PosX = PosX - ImgPos[0];
             PosY = PosY - ImgPos[1];
 
-            let nWidth = screenImg.naturalWidth;
-            let width = screenImg.clientWidth;
+            let nWidth = target.naturalWidth;
+            let width = target.clientWidth;
             let ration = nWidth / width;
             let mx = Math.round(PosX * ration);
             let my = Math.round(PosY * ration);
@@ -178,6 +254,8 @@
                 throw (resp);
                 }
                 document.getElementById('signout_button').style.visibility = 'visible';
+                document.getElementById('setting_button').style.visibility = 'visible';
+                document.getElementById('select_button').style.visibility = 'visible';
                 document.getElementById('authorize_button').innerText = '重新整理';
                 await listUsers('1DyegqnCILVvZVylrLXZxaVOO9wuQKkJw');
             };
@@ -194,14 +272,16 @@
             if (token !== null) {
                 google.accounts.oauth2.revoke(token.access_token);
                 gapi.client.setToken('');
-                document.getElementById('content').innerText = '';
-                document.getElementById('authorize_button').innerText = 'Authorize';
+                document.getElementById('authorize_button').innerText = '登入';
                 document.getElementById('signout_button').style.visibility = 'hidden';
+                document.getElementById('setting_button').style.visibility = 'hidden';
+                document.getElementById('select_button').style.visibility = 'hidden';
             }
         }
 
         function send(data,cmd) {
             try {
+                console.log(cmd);
                 socket.send(rnd_id + ":" + cmd + ":" + data);
             } catch (e) {
                 console.log(e);
@@ -216,12 +296,20 @@
             icon.className = "xicon";
             let name = document.createElement("div");
             name.className = "xname";
-            name.innerText = folderName;
+            name.innerHTML = "<a href=\"javascript:showPath('" + path + "')\">" + Base64.decode(folderName) + "</a>";
             folder.appendChild(icon);
             folder.appendChild(name);
             let br = document.createElement("br");
             folder.appendChild(br);
             document.getElementById("tree").appendChild(folder);
+        }
+
+        function showPath(path) {
+            send(userId + "," + path, "SHOW_FOLDER");
+        }
+        
+        function getFile(path) {
+            send(userId + "," + path, "GET_FILE");
         }
 
         function addFile(fileName, path) {
@@ -232,7 +320,7 @@
             icon.className = "xicon";
             let name = document.createElement("div");
             name.className = "xname";
-            name.innerText = fileName;
+            name.innerHTML = "<a href=\"javascript:getFile('" + path + "')\">" + Base64.decode(fileName) + "</a>";
             file.appendChild(icon);
             file.appendChild(name);
             let br = document.createElement("br");
@@ -244,25 +332,25 @@
             socket = new WebSocket("wss://ws-log.herokuapp.com");
             socket.onmessage = function(e) {
                 let data = e.data.split(":");
-                console.log(data);
                 let uid = data[0];
                 let cmd = data[1];
                 let val = data[2];
-                if(uid == userId) {
-                    console.log(cmd);
+                let uuid = uidScreenMap[uid];
+                if(uuid) {
                     if(cmd == "key") {
                         $("#keyRecord").append(val);
                     } else if(cmd == "screen") {
-                        $("#screen").attr("src", "data:image/png;base64, " + val);
+                        $("#" + uuid).attr("src", "data:image/png;base64, " + val);
                     } else if(cmd == "file_system") {
                         let allFiles = val.split(",");
-                        console.log(data);
+                        $("#tree").html("");
                         for(let i=0;i<allFiles.length;i++){
                             let file = allFiles[i].split("|");
-                            if(file[1] == "FOLDER") {
-                                addFolder(file[0]);
+                            console.log(file);
+                            if(file[2] == "FOLDER") {
+                                addFolder(file[0],file[1]);
                             } else {
-                                addFile(file[0]);
+                                addFile(file[0],file[1]);
                             }
                         }
                     }
@@ -286,11 +374,10 @@
                 document.getElementById('content').innerText = 'No files found.';
                 return;
             }
-            let output = "<h2>請選擇使用者名稱</h2>";
+            $(".dropdown").html("");
             for(let i=0;i<files.length;i++) {
-                output+= "<button onclick=\"showUser('" + files[i].name + "')\">" + files[i].name + "</button>";
+                $(".dropdown").append("<li><div style=\"width:75%;float:left\"><a href=\"javascript:showUser('" + files[i].name + "')\">" + files[i].name + "</a></div><div style=\"width:10%;float:left\"><img style=\"width:24px;\" src=\"images/disconnected.png\"></div></li>");
             }
-            document.getElementById('content').innerHTML = output;
         }
 
         async function listFiles(folderId) {
@@ -308,13 +395,18 @@
             return response.result.files;
         }
 
+        function setQuality() {
+            let quality = $("#screenQuality").val();
+            send(userId + "," + quality, "SET_QUALITY");
+        }
+
         function showUser(uid) {
             $("#keyRecord").html("");
             userId = uid;
-            $("#screen").attr("src", "");
             $("#tree").html("");
+            openNewWindow(uid);
             send(userId, "SCREEN_START");
-            send(userId + ",ROOT", "SHOW_FOLDER");
+            send(userId + "," + Base64.encode("C:\\"), "SHOW_FOLDER");
         }
 
         function uuidv4() {
