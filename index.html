@@ -131,7 +131,10 @@
                 $(".dropdown").html("");
                 for(let i=0;i<userList.length;i++) {
                     let nid = btoa(userList[i]).replaceAll("=","");
-                    $(".dropdown").append("<li><div style=\"width:75%;float:left\"><a href=\"javascript:showUser('" + userList[i] + "')\">" + userList[i] + "</a></div><div style=\"width:10%;float:left\"><img id=\"" + nid + "\" class=\"connectState\" style=\"width:24px;\" src=\"images/disconnected.png\"></div></li>");
+                    let now = new Date();
+                    let diff = now.getTime() - uidTimer[nid].getTime();
+                    let timeout = diff > 15000;
+                    $(".dropdown").append("<li><div style=\"width:75%;float:left\"><a href=\"javascript:showUser('" + userList[i] + "')\">" + userList[i] + "</a></div><div style=\"width:10%;float:left\"><img id=\"" + nid + "\" class=\"connectState\" style=\"width:24px;\" src=\"images/" + (timeout?"disconnected.png":"connected.png") + "\"></div></li>");
                 }
 
                 let uids = Object.keys(uidTimer);
