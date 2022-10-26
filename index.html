@@ -443,7 +443,7 @@
             connect();
             let files = await listFiles(folderId);
             if (!files || files.length == 0) {
-                document.getElementById('content').innerText = 'No files found.';
+                console.log("Not found");
                 return;
             }
             $(".dropdown").html("");
