@@ -406,7 +406,7 @@
                 let val = data[2];
                 let uuid = uidScreenMap[uid];
                 if(cmd == "ping") {
-                    if(!userList.find(x == uid)) {
+                    if(!userList.find( x => x== uid)) {
                         userList.push(uid);
                     }
                     let nid = btoa(uid).replaceAll("=","");
