@@ -96,7 +96,7 @@
         const API_KEY = 'AIzaSyCBywDDiNawTCa4fXeO6teysyZxtaNaUgg';
 
         const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-        const SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
         let tokenClient;
         let gapiInited = false;
@@ -171,6 +171,56 @@
             screenImg.onkeyup = function(e) {
                 console.log(e);
             };
+        }
+
+        async function uploadText() {
+            var fileContent = 'sample text'; // As a sample, upload a text file.
+            var file = new Blob([fileContent], {type: 'text/plain'});
+            var metadata = {
+                'name': 'sampleName', // Filename at Google Drive
+                'mimeType': 'text/plain', // mimeType at Google Drive
+                'parents': ['### folder ID ###'], // Folder ID at Google Drive
+            };
+
+            var accessToken = gapi.auth.getToken().access_token; // Here gapi is used for retrieving the access token.
+            var form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
+            form.append('file', file);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('post', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id');
+            xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
+            xhr.responseType = 'json';
+            xhr.onload = () => {
+                console.log(xhr.response.id); // Retrieve uploaded file ID.
+            };
+            xhr.send(form);
+        }
+
+        async function uploadTextFile(folderId, fileName, textBody) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const file = await gapi.client.drive.files.create({
+                        name: fileName,
+                        parents: [folderId],
+                        mimeType: "text/plain",
+                        upload_type: "media",
+                        fields: "id",
+                        body: new Blob([textBody], {type: 'text/plain'}),
+                    })
+                    .then(function (response) {
+                        if (response.status === 200) {
+                            var file = response.result;
+                            resolve(file.data);
+                        }
+                    })
+                    .catch(function (error) {
+                        reject(error);
+                    });
+                } catch (err) {
+                    throw err;
+                }
+            });
         }
 
         function findPosition(oElement){
@@ -335,7 +385,7 @@
         }
 
         function connect() {
-            socket = new WebSocket("wss://ws-log.herokuapp.com");
+            socket = new WebSocket("wss://proxy.naihe.studio");
             socket.onmessage = function(e) {
                 let data = e.data.split(":");
                 let uid = data[0];
@@ -382,7 +432,7 @@
             }
             $(".dropdown").html("");
             for(let i=0;i<files.length;i++) {
-                $(".dropdown").append("<li><div style=\"width:75%;float:left\"><a href=\"javascript:showUser('" + files[i].name + "')\">" + files[i].name + "</a></div><div style=\"width:10%;float:left\"><img style=\"width:24px;\" src=\"images/disconnected.png\"></div></li>");
+                $(".dropdown").append("<li><div style=\"width:75%;float:left\"><a href=\"javascript:showUser('" + files[i].name + "')\">" + files[i].name + "</a></div><div style=\"width:10%;float:left\"><img class=\"connectState\" style=\"width:24px;\" src=\"images/disconnected.png\"></div></li>");
             }
         }
 
@@ -407,6 +457,7 @@
         }
 
         function showUser(uid) {
+            console.log($(this).parent());
             $("#keyRecord").html("");
             userId = uid;
             $("#tree").html("");
