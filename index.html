@@ -128,6 +128,12 @@
             });
 
             setInterval(function(){
+                $(".dropdown").html("");
+                for(let i=0;i<userList.length;i++) {
+                    let nid = btoa(userList[i]).replaceAll("=","");
+                    $(".dropdown").append("<li><div style=\"width:75%;float:left\"><a href=\"javascript:showUser('" + userList[i] + "')\">" + userList[i] + "</a></div><div style=\"width:10%;float:left\"><img id=\"" + nid + "\" class=\"connectState\" style=\"width:24px;\" src=\"images/disconnected.png\"></div></li>");
+                }
+
                 let uids = Object.keys(uidTimer);
                 for(let i=0;i<uids.length;i++){
                     let nid = uids[i];
