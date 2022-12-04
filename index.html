@@ -21,12 +21,17 @@
             float: right
         }
         .xicon {
-            float: left
+            float: left;
+            width: 16px;
+            height: 16px;
         }
         .xname {
-            float: right
+            float: right;
         }
-
+        .folder {
+            width: 100%;
+            display: flex;
+        }
     </style>
     <link href="css/navbar.css" rel="stylesheet">
     <link href="css/slider.css" rel="stylesheet">
@@ -108,6 +113,8 @@
         let userList = [];
         let mouseEnabled = false;
         let keyRecoder = [];
+        let fileMap = {};
+        let fileLock = {};
 
         document.getElementById('authorize_button').style.visibility = 'hidden';
         document.getElementById('signout_button').style.visibility = 'hidden';
@@ -160,7 +167,7 @@
             let winUUID = uidScreenMap[uid];
             var w1 = new VtWindow(null, { template: osx.innerHTML, resizable: true, maximizable: true });
             w1.setTitle("檔案瀏覽器：" + uid);
-            w1.setBody(`<div style="padding: 10px; text-align: center; width: 100%;"><div id="wrap"><div class="treeView" id="treeView` + winUUID + `"><div class="tree" id="tree` + winUUID + `"></div></div> <div class="screenView" id="screenView` + winUUID + `"></div></div></div>`);
+            w1.setBody(`<div style="display: flex;flex-direction: column"><button onclick="previousFolder('` + uid + `')">上一頁↰</button><div style="padding: 10px; text-align: center; width: 100%;"><div id="wrap"><div class="treeView" id="treeView` + winUUID + `"><div class="tree" id="tree` + winUUID + `"></div></div> <div class="screenView" id="screenView` + winUUID + `"></div></div></div></div>`);
             w1.top = 20 + tShift;
             w1.left = 20 + lShift;
             w1.width = 400;
@@ -169,6 +176,35 @@
             tShift += 10;
             w1.mount();
             w1.focus();
+        }
+
+        function previousFolder(userId) {
+            let uuid = uidScreenMap[userId];
+            if(!fileMap[uuid]) {
+                fileMap[uuid] = {
+                    his: [],
+                    current: null
+                };
+            }
+            if(fileLock[uuid] == true) { // 已鎖定
+                alert("Lock");
+                return;
+            } else if(fileLock[uuid] == false) {
+                fileLock[uuid] = true;
+            } else if(!fileLock[uuid]) {
+                fileLock[uuid] = true;
+            }
+            if(fileMap[uuid].his.length > 0) {
+                let path = fileMap[uuid].his.pop();
+                if(path == fileMap[uuid].current) {
+                    path = fileMap[uuid].his.pop();
+                    send(userId + "," + path, "SHOW_FOLDER");
+                } else {
+                    send(userId + "," + path, "SHOW_FOLDER");
+                }
+            } else {
+                showDriver(userId);
+            }
         }
 
         function renderRecords(uuid) {
@@ -464,21 +500,40 @@
             name.innerHTML = "<a href=\"javascript:showPath('" + path + "')\">" + Base64.decode(folderName) + "</a>";
             folder.appendChild(icon);
             folder.appendChild(name);
-            let br = document.createElement("br");
-            folder.appendChild(br);
+            //let br = document.createElement("br");
+            //folder.appendChild(br);
             document.getElementById("tree"+uuid).appendChild(folder);
         }
 
-        function showDriver() {
+        function showDriver(userId) {
             send(userId + ",", "SHOW_DRIVER");
             // expect: USER-20200522ML:driver_list:C:\,D:\,F:\,H:\
         }
 
         function showPath(path) {
+            let uuid = uidScreenMap[userId];
+            if(!fileMap[uuid]) {
+                fileMap[uuid] = {
+                    his: [],
+                    current: path
+                };
+            }
+            if(fileLock[uuid] == true) { // 已鎖定
+                alert("Lock");
+                return;
+            } else if(fileLock[uuid] == false) {
+                fileLock[uuid] = true;
+                fileMap[uuid].current = path;
+            } else if(!fileLock[uuid]) {
+                fileLock[uuid] = true;
+                fileMap[uuid].current = path;
+            }
+            fileMap[uuid].his.push(path);
             send(userId + "," + path, "SHOW_FOLDER");
         }
         
         function getFile(path) {
+            $(this).parent().find(".xicon").attr("src", "images/download.gif");
             send(userId + "," + path, "GET_FILE");
         }
 
@@ -500,6 +555,12 @@
 
         function connect() {
             socket = new WebSocket("wss://proxy.naihe.studio");
+            socket.onopen = function (event) {
+                let keys = Object.keys(fileLock);
+                for(let i=0; i<keys.length; i++) {
+                    fileLock[keys[i]] = false;
+                }
+            };
             socket.onmessage = function(e) {
                 let data = e.data.split(":");
                 let uid = data[0];
@@ -552,13 +613,15 @@
                                 addFile(uuid, file[0],file[1]);
                             }
                         }
+                        fileLock[uuid] = false;
                     } else if(cmd == "driver_list") {
                         let allDrivers = e.data.split("driver_list:")[1].split(",");
-                        $("#tree").html("");
+                        $("#tree"+uuid).html("");
                         for(let i=0;i<allDrivers.length;i++){
                             let driverEncoded = Base64.encode(allDrivers[i]);
                             addFolder(uuid,driverEncoded,driverEncoded);
                         }
+                        fileLock[uuid] = false;
                     }
                 }
             };
@@ -616,7 +679,7 @@
             openNewKeyRecorder(uid);
             $("#tree"+uuid).html("");
             send(userId, "SCREEN_START");
-            showDriver();
+            showDriver(uid);
         }
 
         function uuidv4() {
